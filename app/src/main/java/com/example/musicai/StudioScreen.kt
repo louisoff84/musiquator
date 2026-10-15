@@ -27,7 +27,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material.icons.rounded.PlayArrow
-import androidx.compose.material.icons.rounded.Stop
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
@@ -219,9 +218,11 @@ private fun Transport(studio: Studio, p: Project) {
         ) {
             if (studio.preparing) {
                 CircularProgressIndicator(Modifier.size(24.dp), color = Color.White, strokeWidth = 2.dp)
+            } else if (studio.playing) {
+                Box(Modifier.size(18.dp).clip(RoundedCornerShape(3.dp)).background(Color.White))
             } else {
                 Icon(
-                    if (studio.playing) Icons.Rounded.Stop else Icons.Rounded.PlayArrow,
+                    Icons.Rounded.PlayArrow,
                     contentDescription = "Lecture", tint = Color.White, modifier = Modifier.size(28.dp)
                 )
             }
