@@ -29,7 +29,7 @@ Adapte le tempo, la tonalité, l'harmonie et le mix au style demandé et à la d
 """.trimIndent()
 
     /** Appel bloquant : à lancer hors du thread principal. */
-    fun plan(baseUrl: String, model: String, userPrompt: String, voiceSeconds: Float?): MixPlan {
+    fun plan(baseUrl: String, model: String, apiKey: String, userPrompt: String, voiceSeconds: Float?): MixPlan {
         val user = buildString {
             append("Demande : ").append(userPrompt.ifBlank { "Une chanson agréable et équilibrée" })
             if (voiceSeconds != null) {
@@ -56,12 +56,26 @@ Adapte le tempo, la tonalité, l'harmonie et le mix au style demandé et à la d
             conn.readTimeout = 180_000
             conn.doOutput = true
             conn.setRequestProperty("Content-Type", "application/json")
+            conn.setRequestProperty("Accept", "application/json")
+            conn.setRequestProperty(
+                "User-Agent",
+                "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) MusicAI/1.0"
+            )
+            if (apiKey.isNotBlank()) conn.setRequestProperty("Authorization", "Bearer ${apiKey.trim()}")
             conn.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
 
             val code = conn.responseCode
             val stream = if (code in 200..299) conn.inputStream else conn.errorStream
             val text = stream?.bufferedReader()?.use { it.readText() } ?: ""
-            if (code !in 200..299) error("Ollama HTTP $code : ${text.take(200)}")
+            if (code !in 200..299) {
+                val detail = if (text.trimStart().startsWith("<")) {
+                    "page HTML renvoyée (proxy, pare-feu ou authentification devant Ollama, pas Ollama lui-même)"
+                } else {
+                    runCatching { JSONObject(text).optString("error") }.getOrNull()
+                        ?.takeIf { it.isNotBlank() } ?: text.take(200)
+                }
+                error("HTTP $code : $detail")
+            }
 
             val content = JSONObject(text).getJSONObject("message").getString("content")
             return MixPlan.fromJson(content)

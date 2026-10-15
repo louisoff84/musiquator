@@ -65,6 +65,7 @@ private fun MusicScreen() {
 
     var serverUrl by remember { mutableStateOf(OllamaClient.DEFAULT_URL) }
     var model by remember { mutableStateOf(OllamaClient.DEFAULT_MODEL) }
+    var apiKey by remember { mutableStateOf("") }
     var prompt by remember { mutableStateOf("") }
 
     var voiceUri by remember { mutableStateOf<Uri?>(null) }
@@ -146,7 +147,7 @@ private fun MusicScreen() {
                 }
                 status = "L'IA prépare le plan de mix…"
                 val p = withContext(Dispatchers.IO) {
-                    OllamaClient.plan(serverUrl.trim(), model.trim(), prompt, voice?.let { it.size / sr.toFloat() })
+                    OllamaClient.plan(serverUrl.trim(), model.trim(), apiKey, prompt, voice?.let { it.size / sr.toFloat() })
                 }
                 plan = p
                 status = "Rendu audio du mix…"
@@ -275,6 +276,10 @@ private fun MusicScreen() {
                 OutlinedTextField(
                     value = model, onValueChange = { model = it },
                     label = { Text("Modèle") }, singleLine = true, modifier = Modifier.fillMaxWidth()
+                )
+                OutlinedTextField(
+                    value = apiKey, onValueChange = { apiKey = it },
+                    label = { Text("Clé d'API (optionnel)") }, singleLine = true, modifier = Modifier.fillMaxWidth()
                 )
             }
         }
