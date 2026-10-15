@@ -21,6 +21,7 @@ STRUCTURE
 - bars : durée totale en mesures (8 à 32)
 - tracks : 4 à 8 pistes (voir ci-dessous)
 - voice : réglages de la voix de l'utilisateur, s'il y en a une : volume (0-1.5), reverb (0-1), delay (0-1), startBar (mesure d'entrée de la voix), loop (true pour la répéter), duck (0-0.8, baisse de la musique quand la voix chante)
+- analysis : ton analyse des paroles et de la voix, objet {"theme":"…","mood":"…","language":"…","structure":["intro","couplet","refrain"],"keywords":["…"],"summary":"2 ou 3 phrases"}
 - notes : une phrase qui explique tes choix
 
 PISTE D'INSTRUMENT
@@ -44,7 +45,9 @@ CONSIGNES
 - La batterie doit être typique du style (rap : tempo 80-100, kick/snare syncopés, hats en double-croches ; house : 4 sur le sol ; etc.).
 - Varie l'arrangement avec fromBar/toBar : intro plus légère, refrain plus chargé, fin allégée.
 - Garde le JSON compact : utilise loopBeats plutôt que d'écrire tous les temps.
-- Si une voix est fournie, laisse de la place dans les médiums, règle voice.startBar pour qu'elle entre au bon moment et choisis bpm et bars pour que le morceau dure au moins la durée de la voix + 8 secondes (durée en secondes = bars * 4 * 60 / bpm).
+- Si des paroles sont fournies, analyse-les en profondeur : thème, émotion, langue, structure (couplets, refrain, pont), rimes, nombre de syllabes par ligne, mots-clés. Compose pour les servir : ambiance, harmonie, énergie qui évolue avec le texte. Résume ton analyse dans la clé analysis.
+- Si une analyse audio de la voix est fournie (mesurée sur l'appareil), utilise-la : tempoBpm, key (root + mode), pitchRange, syllablesPerSecond, loudnessDb, et vocalSegmentsSec = les passages chantés, en secondes depuis le début du fichier voix. Compose dans la même tonalité que la voix. Prends un bpm égal à tempoBpm (ou sa moitié / son double) quand tempoConfidence est au moins 0.3, sinon choisis librement. Allège la musique pendant les passages chantés et enrichis-la entre eux (intro, pont, outro).
+- Si une voix est fournie, laisse de la place dans les médiums, règle voice.startBar pour qu'elle entre au bon moment (laisse une intro musicale) et choisis bpm et bars pour que le morceau dure au moins la durée de la voix + 8 secondes (durée en secondes = bars * 4 * 60 / bpm). Règle voice.volume, reverb, delay et duck selon le style et le volume mesuré.
 """.trimIndent()
 
     /** Appel bloquant : à lancer hors du thread principal. Une seule relance si le JSON est invalide. */
@@ -53,15 +56,19 @@ CONSIGNES
         model: String,
         apiKey: String,
         userPrompt: String,
-        voiceSeconds: Float?
+        analysis: VoiceAnalysis?,
+        lyrics: String
     ): Song {
         val user = buildString {
             append("Compose ce morceau : ").append(userPrompt.ifBlank { "Une chanson agréable et équilibrée" })
-            if (voiceSeconds != null) {
-                append("\nUne voix de ").append("%.1f".format(voiceSeconds))
-                    .append(" secondes est fournie : prévois-lui sa place dans le morceau.")
+            if (analysis != null) {
+                append("\n\nUne voix est fournie. Analyse audio mesurée sur l'appareil :\n")
+                    .append(analysis.toJson().toString())
             } else {
-                append("\nAucune voix fournie : morceau instrumental.")
+                append("\n\nAucune voix fournie : morceau instrumental.")
+            }
+            if (lyrics.isNotBlank()) {
+                append("\n\nParoles :\n").append(lyrics.trim().take(4000))
             }
         }
         val messages = JSONArray()

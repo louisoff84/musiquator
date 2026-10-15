@@ -84,6 +84,8 @@ private fun MusicScreen() {
     var status by remember { mutableStateOf("Prêt.") }
     var song by remember { mutableStateOf<Song?>(null) }
     var showJson by remember { mutableStateOf(false) }
+    var lyrics by remember { mutableStateOf("") }
+    var voiceAnalysis by remember { mutableStateOf<VoiceAnalysis?>(null) }
     var resultFile by remember { mutableStateOf<File?>(null) }
     var playing by remember { mutableStateOf(false) }
     var player by remember { mutableStateOf<MediaPlayer?>(null) }
@@ -153,9 +155,14 @@ private fun MusicScreen() {
                     status = "Décodage de la voix…"
                     withContext(Dispatchers.Default) { AudioDecoder.decode(ctx, uri, sr) }
                 }
-                status = "L'IA compose les pistes en JSON…"
+                val analysis = voice?.let {
+                    status = "Analyse de la voix (tempo, tonalité, passages)…"
+                    withContext(Dispatchers.Default) { VoiceAnalyzer.analyze(it, sr) }
+                }
+                voiceAnalysis = analysis
+                status = "L'IA analyse et compose les pistes en JSON…"
                 val s = withContext(Dispatchers.IO) {
-                    OllamaClient.compose(serverUrl.trim(), model.trim(), apiKey, prompt, voice?.let { it.size / sr.toFloat() })
+                    OllamaClient.compose(serverUrl.trim(), model.trim(), apiKey, prompt, analysis, lyrics)
                 }
                 song = s
                 showJson = false
@@ -239,10 +246,20 @@ private fun MusicScreen() {
                     ) { Text(if (recording) "Arrêter" else "Enregistrer") }
                     if (voiceUri != null) {
                         OutlinedButton(
-                            onClick = { voiceUri = null; voiceName = null },
+                            onClick = { voiceUri = null; voiceName = null; voiceAnalysis = null },
                             enabled = !busy && !recording
                         ) { Text("Retirer") }
                     }
+                }
+                OutlinedTextField(
+                    value = lyrics,
+                    onValueChange = { lyrics = it },
+                    label = { Text("Paroles (optionnel) : colle-les pour que l'IA les analyse") },
+                    modifier = Modifier.fillMaxWidth(),
+                    minLines = 3
+                )
+                voiceAnalysis?.let { a ->
+                    Text("Analyse de la voix : ${a.summary()}", style = MaterialTheme.typography.bodySmall)
                 }
             }
         }
@@ -266,6 +283,10 @@ private fun MusicScreen() {
                     s.tracks.forEach { t ->
                         val detail = if (t.instrument == "drums") "${t.pattern.size + t.hits.size} sons" else "${t.notes.size} notes"
                         Text("• ${t.name} (${t.instrument}) : $detail, mesures ${t.fromBar + 1} à ${t.toBar}")
+                    }
+                    if (s.analysis.isNotBlank()) {
+                        Text("Analyse de l'IA", style = MaterialTheme.typography.titleSmall)
+                        Text(s.analysis, style = MaterialTheme.typography.bodySmall)
                     }
                     if (s.notes.isNotBlank()) Text(s.notes, style = MaterialTheme.typography.bodySmall)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {

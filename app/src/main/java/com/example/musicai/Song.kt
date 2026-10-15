@@ -41,7 +41,8 @@ class Song(
     val tracks: List<Track>,
     val voice: VoiceSettings,
     val notes: String,
-    val json: String               // JSON d'origine (mis en forme) pour affichage / copie
+    val json: String,              // JSON d'origine (mis en forme) pour affichage / copie
+    val analysis: String = ""      // analyse des paroles et de la voix faite par l'IA
 )
 
 object SongParser {
@@ -95,8 +96,26 @@ object SongParser {
             tracks = tracks,
             voice = voice,
             notes = o.optString("notes", ""),
-            json = o.toString(2)
+            json = o.toString(2),
+            analysis = parseAnalysis(o.optJSONObject("analysis"))
         )
+    }
+
+    private fun parseAnalysis(a: JSONObject?): String {
+        if (a == null) return ""
+        fun list(key: String): String {
+            val arr = a.optJSONArray(key) ?: return ""
+            return (0 until arr.length()).map { arr.optString(it) }.filter { it.isNotBlank() }.joinToString(", ")
+        }
+        val lines = listOf(
+            "Thème" to a.optString("theme", ""),
+            "Ambiance" to a.optString("mood", ""),
+            "Langue" to a.optString("language", ""),
+            "Structure" to list("structure"),
+            "Mots-clés" to list("keywords"),
+            "Résumé" to a.optString("summary", "")
+        )
+        return lines.filter { it.second.isNotBlank() }.joinToString("\n") { "${it.first} : ${it.second}" }
     }
 
     private fun f(o: JSONObject, k: String, def: Float, lo: Float, hi: Float): Float {
