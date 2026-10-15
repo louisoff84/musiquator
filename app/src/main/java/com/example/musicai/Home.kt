@@ -18,7 +18,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.AutoAwesome
+import androidx.compose.material.icons.rounded.Star
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material3.AlertDialog
@@ -77,7 +77,7 @@ fun HomeScreen(studio: Studio) {
                 Brush.linearGradient(listOf(Accent, Color(0xFF6D3FE0))), Modifier.weight(1f)
             ) { newWithAi = false; showNew = true }
             BigAction(
-                "Créer avec l'IA", "Décris, elle compose", Icons.Rounded.AutoAwesome,
+                "Créer avec l'IA", "Décris, elle compose", Icons.Rounded.Star,
                 Brush.linearGradient(listOf(Color(0xFF0E9F8E), Color(0xFF0B7285))), Modifier.weight(1f)
             ) { newWithAi = true; showNew = true }
         }

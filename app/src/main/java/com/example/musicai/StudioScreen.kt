@@ -25,14 +25,9 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.AutoAwesome
-import androidx.compose.material.icons.rounded.Download
-import androidx.compose.material.icons.rounded.Edit
-import androidx.compose.material.icons.rounded.Layers
-import androidx.compose.material.icons.rounded.Piano
+import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Stop
-import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
@@ -88,7 +83,7 @@ fun StudioScreen(studio: Studio) {
                 SmallBtn("↷", { studio.redo() }, color = Color.Transparent, enabled = studio.canRedo)
                 Box {
                     IconButton(onClick = { exportMenu = true }) {
-                        Icon(Icons.Rounded.Download, contentDescription = "Exporter", tint = TextHi)
+                        Icon(Icons.Rounded.Share, contentDescription = "Exporter", tint = TextHi)
                     }
                     DropdownMenu(expanded = exportMenu, onDismissRequest = { exportMenu = false }) {
                         DropdownMenuItem(text = { Text("Exporter en WAV") }, onClick = {
@@ -114,18 +109,18 @@ fun StudioScreen(studio: Studio) {
             }
 
             val items = listOf(
-                "Pistes" to Icons.Rounded.Layers,
-                "Éditeur" to Icons.Rounded.Edit,
-                "Jouer" to Icons.Rounded.Piano,
-                "Mixeur" to Icons.Rounded.Tune,
-                "IA" to Icons.Rounded.AutoAwesome
+                "Pistes" to "☰",
+                "Éditeur" to "✎",
+                "Jouer" to "🎹",
+                "Mixeur" to "🎚",
+                "IA" to "✨"
             )
             NavigationBar(containerColor = Surface1, windowInsets = WindowInsets(0, 0, 0, 0)) {
                 items.forEachIndexed { i, (label, icon) ->
                     NavigationBarItem(
                         selected = studio.tab == i,
                         onClick = { studio.tab = i },
-                        icon = { Icon(icon, contentDescription = label) },
+                        icon = { Text(icon, fontSize = 20.sp) },
                         label = { Text(label, fontSize = 11.sp) },
                         colors = NavigationBarItemDefaults.colors(
                             selectedIconColor = Color.White,
