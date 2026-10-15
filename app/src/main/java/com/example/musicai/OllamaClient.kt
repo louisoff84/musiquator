@@ -48,6 +48,7 @@ CONSIGNES
 - Si des paroles sont fournies, analyse-les en profondeur : thème, émotion, langue, structure (couplets, refrain, pont), rimes, nombre de syllabes par ligne, mots-clés. Compose pour les servir : ambiance, harmonie, énergie qui évolue avec le texte. Résume ton analyse dans la clé analysis.
 - Si une analyse audio de la voix est fournie (mesurée sur l'appareil), utilise-la : tempoBpm, key (root + mode), pitchRange, syllablesPerSecond, loudnessDb, et vocalSegmentsSec = les passages chantés, en secondes depuis le début du fichier voix. Compose dans la même tonalité que la voix. Prends un bpm égal à tempoBpm (ou sa moitié / son double) quand tempoConfidence est au moins 0.3, sinon choisis librement. Allège la musique pendant les passages chantés et enrichis-la entre eux (intro, pont, outro).
 - Si une voix est fournie, laisse de la place dans les médiums, règle voice.startBar pour qu'elle entre au bon moment (laisse une intro musicale) et choisis bpm et bars pour que le morceau dure au moins la durée de la voix + 8 secondes (durée en secondes = bars * 4 * 60 / bpm). Règle voice.volume, reverb, delay et duck selon le style et le volume mesuré.
+- Si un morceau existant est fourni en JSON, modifie-le selon la demande et renvoie le morceau complet, en conservant les pistes non concernées telles quelles.
 """.trimIndent()
 
     /** Appel bloquant : à lancer hors du thread principal. Une seule relance si le JSON est invalide. */
@@ -71,6 +72,11 @@ CONSIGNES
                 append("\n\nParoles :\n").append(lyrics.trim().take(4000))
             }
         }
+        return ask(baseUrl, model, apiKey, user)
+    }
+
+    /** Envoie une demande déjà rédigée et renvoie le morceau décodé (une relance si le JSON est invalide). */
+    fun ask(baseUrl: String, model: String, apiKey: String, user: String): Song {
         val messages = JSONArray()
             .put(JSONObject().put("role", "system").put("content", SYSTEM_PROMPT))
             .put(JSONObject().put("role", "user").put("content", user))
