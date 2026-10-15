@@ -7,7 +7,7 @@ import java.net.URL
 
 object OllamaClient {
     const val DEFAULT_URL = "http://82.26.80.20:11434"
-    const val DEFAULT_MODEL = "gemma4:31b-cloud"
+    const val DEFAULT_MODEL = "gpt-oss:120b-cloud"
 
     private val SYSTEM_PROMPT = """
 Tu es un producteur de musique et ingénieur du mix. L'utilisateur décrit la musique voulue et fournit parfois une voix (a cappella) à mixer avec une instrumentale générée par synthétiseur.
