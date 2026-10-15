@@ -6,7 +6,7 @@ Application Android (Kotlin + Jetpack Compose) pour créer une musique et la mix
 
 1. Tu écris un prompt (style, ambiance, tempo…).
 2. Tu importes une voix (mp3, m4a, wav, ogg…) ou tu l'enregistres au micro (optionnel).
-3. L'IA (Ollama, `gpt-oss:120b-cloud` sur `http://82.26.80.20:11434`) renvoie un plan de mix en JSON :
+3. L'IA (Ollama, `gpt-oss:120b-cloud`) compose le morceau en JSON :
    tempo, tonalité, accords, batterie, volumes, reverb/delay de la voix, entrée de la voix.
 4. Le moteur audio intégré (synthé basse / accords / mélodie / batterie) génère l'instrumentale,
    place la voix, applique les effets et un ducking automatique, puis produit un WAV.

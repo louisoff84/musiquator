@@ -10,50 +10,97 @@ object OllamaClient {
     const val DEFAULT_MODEL = "gpt-oss:120b-cloud"
 
     private val SYSTEM_PROMPT = """
-Tu es un producteur de musique et ingénieur du mix. L'utilisateur décrit la musique voulue et fournit parfois une voix (a cappella) à mixer avec une instrumentale générée par synthétiseur.
-Réponds UNIQUEMENT avec un objet JSON valide, sans texte autour ni markdown, avec exactement ces clés :
-- title (string)
-- bpm (entier 60-180)
-- root (C, C#, D, D#, E, F, F#, G, G#, A, A#, B)
-- scale ("minor" ou "major")
-- chords (liste de 4 à 8 entiers 1-7 : degrés de la gamme, une valeur par mesure, répétée en boucle)
-- bars (entier 8-64 : nombre de mesures)
-- drums ("none", "four_on_floor", "hiphop", "breakbeat" ou "half_time")
-- melody (true/false : mélodie synthé en plus)
-- bassVol, chordsVol, drumsVol, melodyVol, voiceVol (nombres 0 à 1.5)
-- voiceReverb (0 à 1), voiceDelay (0 à 1)
-- voiceStartBar (nombre de mesures avant l'entrée de la voix, 0 à 8)
-- voiceLoop (true pour répéter la voix, false sinon)
-- notes (une phrase qui explique tes choix de mix)
-Adapte le tempo, la tonalité, l'harmonie et le mix au style demandé et à la durée de la voix.
+Tu es un compositeur et producteur de musique. Tu composes de vraies pistes audio sous forme de données JSON, jouées ensuite par le synthétiseur de l'application.
+Mesure : toujours 4/4. Le temps est compté en noires (beats) : une mesure = 4 temps, une croche = 0.5, une double-croche = 0.25.
+
+Réponds UNIQUEMENT avec un objet JSON valide : pas de markdown, pas de commentaire, pas de texte autour.
+
+STRUCTURE
+- title : nom du morceau
+- bpm : 50 à 200
+- bars : durée totale en mesures (8 à 32)
+- tracks : 4 à 8 pistes (voir ci-dessous)
+- voice : réglages de la voix de l'utilisateur, s'il y en a une : volume (0-1.5), reverb (0-1), delay (0-1), startBar (mesure d'entrée de la voix), loop (true pour la répéter), duck (0-0.8, baisse de la musique quand la voix chante)
+- notes : une phrase qui explique tes choix
+
+PISTE D'INSTRUMENT
+{"name":"Basse","instrument":"bass","volume":0.8,"reverb":0,"delay":0,"fromBar":0,"toBar":16,"loopBeats":16,"notes":[[45,0,1,0.9],[45,1.5,0.5,0.7],[["A3","C4","E4"],0,4,0.6]]}
+- instrument : bass, sub, pad, strings, lead, pluck, keys, bell
+- notes : liste de [hauteur, début, durée, vélocité 0-1]. La hauteur est un numéro MIDI (60 = Do4) ou un nom ("A2", "C#4", "Bb3"). Pour un accord, la hauteur est une liste : [["A3","C4","E4"],0,4,0.6].
+- début et durée sont en temps (noires), comptés depuis le début du motif.
+- loopBeats : longueur du motif en temps (16 = 4 mesures). Le motif est répété automatiquement de fromBar à toBar. Utilise-le pour garder un JSON court. Sans loopBeats, les débuts sont comptés depuis le début du morceau.
+- fromBar / toBar : mesures d'entrée et de sortie de la piste, pour l'arrangement (intro, couplet, refrain, outro).
+- volume 0-1.5, reverb 0-1, delay 0-1 (écho en croche pointée).
+
+PISTE DE BATTERIE
+{"name":"Batterie","instrument":"drums","volume":0.9,"fromBar":0,"toBar":16,"pattern":{"kick":"x...x...x...x...","snare":"....x.......x...","hat":"..x...x...x...x."}}
+- chaque caractère d'un motif est une double-croche : x = coup, X = coup fort, . = silence. Le motif est répété automatiquement (16 caractères = 1 mesure, 32 = 2 mesures).
+- sons : kick, snare, hat, openhat, clap, tom, rim.
+- optionnel : "hits":[["tom",15,0.8],["clap",31,1]] pour des fills ponctuels (début en temps).
+
+CONSIGNES
+- Choisis une tonalité et une progression d'accords adaptées au style demandé, et reste dans la gamme.
+- La basse suit les fondamentaux des accords. Ajoute une mélodie mémorable et un pad ou des accords.
+- La batterie doit être typique du style (rap : tempo 80-100, kick/snare syncopés, hats en double-croches ; house : 4 sur le sol ; etc.).
+- Varie l'arrangement avec fromBar/toBar : intro plus légère, refrain plus chargé, fin allégée.
+- Garde le JSON compact : utilise loopBeats plutôt que d'écrire tous les temps.
+- Si une voix est fournie, laisse de la place dans les médiums, règle voice.startBar pour qu'elle entre au bon moment et choisis bpm et bars pour que le morceau dure au moins la durée de la voix + 8 secondes (durée en secondes = bars * 4 * 60 / bpm).
 """.trimIndent()
 
-    /** Appel bloquant : à lancer hors du thread principal. */
-    fun plan(baseUrl: String, model: String, apiKey: String, userPrompt: String, voiceSeconds: Float?): MixPlan {
+    /** Appel bloquant : à lancer hors du thread principal. Une seule relance si le JSON est invalide. */
+    fun compose(
+        baseUrl: String,
+        model: String,
+        apiKey: String,
+        userPrompt: String,
+        voiceSeconds: Float?
+    ): Song {
         val user = buildString {
-            append("Demande : ").append(userPrompt.ifBlank { "Une chanson agréable et équilibrée" })
+            append("Compose ce morceau : ").append(userPrompt.ifBlank { "Une chanson agréable et équilibrée" })
             if (voiceSeconds != null) {
                 append("\nUne voix de ").append("%.1f".format(voiceSeconds))
-                    .append(" secondes est fournie : fais-la ressortir dans le mix.")
+                    .append(" secondes est fournie : prévois-lui sa place dans le morceau.")
             } else {
-                append("\nAucune voix fournie : musique instrumentale.")
+                append("\nAucune voix fournie : morceau instrumental.")
             }
         }
+        val messages = JSONArray()
+            .put(JSONObject().put("role", "system").put("content", SYSTEM_PROMPT))
+            .put(JSONObject().put("role", "user").put("content", user))
+
+        var lastError = ""
+        for (attempt in 1..2) {
+            val content = chat(baseUrl, model, apiKey, messages)
+            try {
+                return SongParser.parse(content)
+            } catch (e: Exception) {
+                lastError = e.message ?: e.javaClass.simpleName
+                messages
+                    .put(JSONObject().put("role", "assistant").put("content", content))
+                    .put(
+                        JSONObject().put("role", "user").put(
+                            "content",
+                            "Ton JSON est invalide ($lastError). Renvoie uniquement le JSON complet corrigé."
+                        )
+                    )
+            }
+        }
+        error("JSON de l'IA invalide : $lastError")
+    }
+
+    private fun chat(baseUrl: String, model: String, apiKey: String, messages: JSONArray): String {
         val body = JSONObject()
             .put("model", model)
             .put("stream", false)
             .put("format", "json")
-            .put(
-                "messages", JSONArray()
-                    .put(JSONObject().put("role", "system").put("content", SYSTEM_PROMPT))
-                    .put(JSONObject().put("role", "user").put("content", user))
-            )
+            .put("options", JSONObject().put("temperature", 0.8).put("num_predict", 12000))
+            .put("messages", messages)
 
         val conn = URL("${baseUrl.trimEnd('/')}/api/chat").openConnection() as HttpURLConnection
         try {
             conn.requestMethod = "POST"
             conn.connectTimeout = 15_000
-            conn.readTimeout = 180_000
+            conn.readTimeout = 300_000
             conn.doOutput = true
             conn.setRequestProperty("Content-Type", "application/json")
             conn.setRequestProperty("Accept", "application/json")
@@ -76,9 +123,7 @@ Adapte le tempo, la tonalité, l'harmonie et le mix au style demandé et à la d
                 }
                 error("HTTP $code : $detail")
             }
-
-            val content = JSONObject(text).getJSONObject("message").getString("content")
-            return MixPlan.fromJson(content)
+            return JSONObject(text).getJSONObject("message").optString("content", "")
         } finally {
             conn.disconnect()
         }

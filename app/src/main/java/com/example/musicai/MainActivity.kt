@@ -40,8 +40,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -62,6 +68,7 @@ class MainActivity : ComponentActivity() {
 private fun MusicScreen() {
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
+    val clipboard = LocalClipboardManager.current
 
     var serverUrl by remember { mutableStateOf(OllamaClient.DEFAULT_URL) }
     var model by remember { mutableStateOf(OllamaClient.DEFAULT_MODEL) }
@@ -75,7 +82,8 @@ private fun MusicScreen() {
 
     var busy by remember { mutableStateOf(false) }
     var status by remember { mutableStateOf("Prêt.") }
-    var plan by remember { mutableStateOf<MixPlan?>(null) }
+    var song by remember { mutableStateOf<Song?>(null) }
+    var showJson by remember { mutableStateOf(false) }
     var resultFile by remember { mutableStateOf<File?>(null) }
     var playing by remember { mutableStateOf(false) }
     var player by remember { mutableStateOf<MediaPlayer?>(null) }
@@ -145,18 +153,19 @@ private fun MusicScreen() {
                     status = "Décodage de la voix…"
                     withContext(Dispatchers.Default) { AudioDecoder.decode(ctx, uri, sr) }
                 }
-                status = "L'IA prépare le plan de mix…"
-                val p = withContext(Dispatchers.IO) {
-                    OllamaClient.plan(serverUrl.trim(), model.trim(), apiKey, prompt, voice?.let { it.size / sr.toFloat() })
+                status = "L'IA compose les pistes en JSON…"
+                val s = withContext(Dispatchers.IO) {
+                    OllamaClient.compose(serverUrl.trim(), model.trim(), apiKey, prompt, voice?.let { it.size / sr.toFloat() })
                 }
-                plan = p
-                status = "Rendu audio du mix…"
+                song = s
+                showJson = false
+                status = "Rendu audio des pistes…"
                 val file = withContext(Dispatchers.Default) {
-                    val pcm = AudioEngine.render(p, voice)
+                    val pcm = AudioEngine.render(s, voice)
                     File(ctx.cacheDir, "mix.wav").also { WavWriter.write(it, pcm, sr) }
                 }
                 resultFile = file
-                status = "Terminé : ${p.title}"
+                status = "Terminé : ${s.title}"
             } catch (e: Exception) {
                 status = "Erreur : ${e.message}"
             } finally {
@@ -181,7 +190,7 @@ private fun MusicScreen() {
 
     fun export() {
         val f = resultFile ?: return
-        val name = (plan?.title ?: "mix").replace(Regex("[^A-Za-z0-9 _-]"), "").trim().ifBlank { "mix" }
+        val name = (song?.title ?: "mix").replace(Regex("[^A-Za-z0-9 _-]"), "").trim().ifBlank { "mix" }
         try {
             val values = ContentValues().apply {
                 put(MediaStore.Audio.Media.DISPLAY_NAME, "$name.wav")
@@ -242,19 +251,44 @@ private fun MusicScreen() {
             onClick = { generate() },
             enabled = !busy && !recording,
             modifier = Modifier.fillMaxWidth()
-        ) { Text("Créer et mixer avec l'IA") }
+        ) { Text("Composer avec l'IA") }
 
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             if (busy) CircularProgressIndicator(modifier = Modifier.padding(end = 4.dp))
             Text(status, modifier = Modifier.padding(top = 4.dp))
         }
 
-        plan?.let { p ->
+        song?.let { s ->
             Card(modifier = Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text(p.title, style = MaterialTheme.typography.titleMedium)
-                    Text("${p.bpm} BPM · ${p.root} ${if (p.minor) "mineur" else "majeur"} · ${p.bars} mesures · batterie : ${p.drums}")
-                    if (p.notes.isNotBlank()) Text(p.notes)
+                    Text(s.title, style = MaterialTheme.typography.titleMedium)
+                    Text("${s.bpm} BPM · ${s.bars} mesures · ${s.tracks.size} pistes")
+                    s.tracks.forEach { t ->
+                        val detail = if (t.instrument == "drums") "${t.pattern.size + t.hits.size} sons" else "${t.notes.size} notes"
+                        Text("• ${t.name} (${t.instrument}) : $detail, mesures ${t.fromBar + 1} à ${t.toBar}")
+                    }
+                    if (s.notes.isNotBlank()) Text(s.notes, style = MaterialTheme.typography.bodySmall)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedButton(onClick = { showJson = !showJson }) {
+                            Text(if (showJson) "Masquer le JSON" else "Voir le JSON")
+                        }
+                        OutlinedButton(onClick = {
+                            clipboard.setText(AnnotatedString(s.json))
+                            status = "JSON copié."
+                        }) { Text("Copier le JSON") }
+                    }
+                    if (showJson) {
+                        SelectionContainer {
+                            Text(
+                                s.json,
+                                fontFamily = FontFamily.Monospace,
+                                fontSize = 11.sp,
+                                modifier = Modifier
+                                    .heightIn(max = 400.dp)
+                                    .verticalScroll(rememberScrollState())
+                            )
+                        }
+                    }
                 }
             }
         }
